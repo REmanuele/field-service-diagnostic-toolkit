@@ -1,0 +1,25 @@
+FIELD SERVICE DIAGNOSTIC REPORT
+=================================
+Generated at: 2026-07-10 08:30:00
+
+System
+------
+Hostname: redfish
+Operating system: Linux 6.x
+Architecture: aarch64
+Uptime: 2 days, 04:11:02
+CPU load (1, 5, 15 min): 0.24, 0.31, 0.28
+Memory usage: 42.3%
+Disk usage (/): 61.0%
+
+Network
+-------
+IP addresses: 192.168.1.50
+Default gateway: default via 192.168.1.1 dev eth0
+DNS servers: 1.1.1.1, 8.8.8.8
+DNS resolution: OK (github.com -> 140.82.112.4)
+Internet connectivity: OK
+
+Notes
+-----
+Review failed checks first. Validate the fix by running the toolkit again after changes.
