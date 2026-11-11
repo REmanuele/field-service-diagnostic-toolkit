@@ -149,7 +149,7 @@ def build_report(services: Iterable[str]) -> str:
         f"Default gateway: {read_default_gateway()}",
         f"DNS servers: {', '.join(dns_servers) or 'not detected'}",
         f"DNS resolution: {check_dns()}",
-        f"Internet connectivity: {check_ping()}",
+        f"ICMP reachability (1.1.1.1): {check_ping()}",
     ]
 
     if service_lines:
