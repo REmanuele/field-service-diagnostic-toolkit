@@ -14,7 +14,7 @@ This tool automates the first diagnostic phase and generates a readable report t
 - CPU load, memory and disk usage
 - IP address and default gateway detection
 - DNS configuration check
-- Internet connectivity test
+- ICMP reachability check (ping)
 - Optional `systemd` service status checks
 - Text report generation
 - No external Python dependencies
@@ -57,7 +57,7 @@ Memory usage: 42.3%
 Disk usage: 61.0%
 Default gateway: 192.168.1.1
 DNS resolution: OK
-Internet connectivity: OK
+ICMP reachability (1.1.1.1): OK
 ```
 
 ## Troubleshooting approach
@@ -72,6 +72,13 @@ This project follows a structured approach:
 6. Apply a fix
 7. Validate the result
 8. Document the solution
+
+## Known limitations
+
+- ICMP reachability does not guarantee full Internet connectivity.
+- Some firewalls block ICMP traffic, even when Internet access is working.
+- Service checks require systemd.
+- Diagnostic reports may contain hostnames, IP addresses and other network information. Review them before sharing.
 
 ## Safety note
 
