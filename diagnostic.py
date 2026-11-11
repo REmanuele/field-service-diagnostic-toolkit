@@ -173,11 +173,16 @@ def main() -> int:
     report = build_report(args.service)
     print(report)
 
+    
     if args.output:
         output_path = Path(args.output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(report, encoding="utf-8")
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(report, encoding="utf-8")
+        except OSError as exc:
+            parser.exit(1, f"Error saving report to {output_path}: {exc}\n")
         print(f"Report saved to: {output_path}")
+
 
     return 0
 
