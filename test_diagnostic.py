@@ -49,4 +49,19 @@ class TestToolkit(unittest.TestCase):
         self.assertTrue(d.read_disk_usage().strip())
         self.assertTrue(d.read_memory_usage().strip())
 
+    @patch('diagnostic.build_report', return_value='example report\n')
+    @patch('diagnostic.Path.mkdir')
+    @patch('diagnostic.Path.write_text', side_effect=PermissionError('permission denied'))
+    def test_report_save_permission_error(self, mock_write, mock_mkdir, mock_report):
+        from io import StringIO
+        with patch('sys.argv', ['diagnostic.py', '--output', 'reports/report.txt']):
+            with patch('sys.stderr', new_callable=StringIO) as stderr:
+                with patch('builtins.print'):
+                    with self.assertRaises(SystemExit) as raised:
+                        d.main()
+        self.assertEqual(raised.exception.code, 1)
+        self.assertIn('Error saving report', stderr.getvalue())
+        self.assertIn('permission denied', stderr.getvalue())
+        mock_write.assert_called_once()
+
 if __name__ == '__main__': unittest.main()
