@@ -1,25 +1,33 @@
 FIELD SERVICE DIAGNOSTIC REPORT
 =================================
-Generated at: 2026-07-10 08:30:00
+Generated at: 2026-01-01 00:00:00
+Privacy mode: REDACTED (review before sharing)
 
 System
 ------
-Hostname: redfish
-Operating system: Linux 6.x
+Hostname: [REDACTED]
+Operating system: Linux 6.x-example
 Architecture: aarch64
-Uptime: 2 days, 04:11:02
-CPU load (1, 5, 15 min): 0.24, 0.31, 0.28
-Memory usage: 42.3%
-Disk usage (/): 61.0%
+Uptime: 1 day, 02:00:00
+CPU load (1, 5, 15 min): 0.10, 0.12, 0.15
+Memory usage: 20.0% (1600 MB used / 8000 MB total)
+Disk usage (/): 25.0% (16 GB used / 64 GB total)
 
 Network
 -------
-IP addresses: 192.168.1.50
-Default gateway: default via 192.168.1.1 dev eth0
-DNS servers: 1.1.1.1, 8.8.8.8
-DNS resolution: OK (github.com -> 140.82.112.4)
-ICMP reachability (1.1.1.1): OK
+IP addresses: IPv4=1, IPv6=0, unclassified=0 (values hidden)
+Default gateway: configured (details hidden)
+DNS servers: 1 configured (values hidden)
+DNS resolution: OK (details hidden)
+ICMP reachability: OK (details hidden)
+
+Services
+--------
+service-1: active
 
 Notes
 -----
 Review failed checks first. Validate the fix by running the toolkit again after changes.
+Anonymization is best effort; manually review before sharing.
+
+SYNTHETIC EXAMPLE — values invented for documentation, not collected from a real system.

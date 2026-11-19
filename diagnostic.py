@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """Field Service Diagnostic Toolkit.
 
-Collects basic Linux system and network diagnostic information and prints/generates
-a text report. The script intentionally uses only the Python standard library.
+Read-only Linux host/network diagnostics with optional privacy-preserving reports.
+No third-party Python dependencies.
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import ipaddress
 import os
 import platform
 import shutil
 import socket
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Iterable
 
@@ -122,20 +124,84 @@ def check_service(service: str) -> str:
     return f"{service}: {output or 'not active'}"
 
 
-def build_report(services: Iterable[str]) -> str:
+def _service_status_only(service: str) -> str:
+    """Allowlist a state without exposing potentially identifying service names/errors."""
+    result = check_service(service)
+    prefix = f"{service}: "
+    if not result.startswith(prefix):
+        return "unknown"
+    raw_status = result[len(prefix):].strip().lower()
+    known_statuses = {"active", "inactive", "failed", "activating", "deactivating", "reloading", "maintenance"}
+    return raw_status if raw_status in known_statuses else "unknown"
+
+
+def _ip_version_counts(addresses: Iterable[str]) -> tuple[int, int, int]:
+    ipv4 = ipv6 = other = 0
+    for address in addresses:
+        try:
+            version = ipaddress.ip_address(address.split("%", 1)[0]).version
+        except ValueError:
+            other += 1
+        else:
+            if version == 4:
+                ipv4 += 1
+            else:
+                ipv6 += 1
+    return ipv4, ipv6, other
+
+
+def _outcome_only(message: str) -> str:
+    """Drop all diagnostic command output and exception messages, which may include IPs."""
+    if message.startswith("OK"):
+        return "OK"
+    if message.startswith("FAILED"):
+        return "FAILED"
+    return "unknown"
+
+
+def build_report(services: Iterable[str], redact: bool = False) -> str:
+    """Build a report; redacted mode uses an allowlist, not fragile IP substitutions.
+
+    In redacted mode, hostnames, IP addresses, DNS values, gateway details,
+    ping diagnostics and service identifiers are not included in the output.
+    The caller must still review the resulting report before sharing it.
+    """
     now = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cpu_load = ", ".join(f"{value:.2f}" for value in os.getloadavg()) if hasattr(os, "getloadavg") else "unknown"
     dns_servers = read_dns_servers()
-    service_lines = [check_service(service) for service in services]
+
+    if redact:
+        v4, v6, unclassified = _ip_version_counts(read_ip_addresses())
+        gateway_status = "configured" if read_default_gateway() != "not detected" else "not detected"
+        service_lines = [f"service-{i}: {_service_status_only(service)}" for i, service in enumerate(services, start=1)]
+        hostname = "[REDACTED]"
+        network_lines = [
+            f"IP addresses: IPv4={v4}, IPv6={v6}, unclassified={unclassified} (values hidden)",
+            f"Default gateway: {gateway_status} (details hidden)",
+            f"DNS servers: {len(dns_servers)} configured (values hidden)",
+            f"DNS resolution: {_outcome_only(check_dns())} (details hidden)",
+            f"ICMP reachability: {_outcome_only(check_ping())} (details hidden)",
+        ]
+    else:
+        hostname = socket.gethostname()
+        service_lines = [check_service(service) for service in services]
+        network_lines = [
+            f"IP addresses: {', '.join(read_ip_addresses()) or 'not detected'}",
+            f"Default gateway: {read_default_gateway()}",
+            f"DNS servers: {', '.join(dns_servers) or 'not detected'}",
+            f"DNS resolution: {check_dns()}",
+            f"ICMP reachability (1.1.1.1): {check_ping()}",
+        ]
 
     lines = [
         "FIELD SERVICE DIAGNOSTIC REPORT",
         "=" * 33,
         f"Generated at: {now}",
+        f"Privacy mode: {'REDACTED (review before sharing)' if redact else 'FULL (private data may be included)'}",
         "",
         "System",
         "------",
-        f"Hostname: {socket.gethostname()}",
+        f"Hostname: {hostname}",
         f"Operating system: {platform.system()} {platform.release()}",
         f"Architecture: {platform.machine()}",
         f"Uptime: {read_uptime()}",
@@ -145,44 +211,60 @@ def build_report(services: Iterable[str]) -> str:
         "",
         "Network",
         "-------",
-        f"IP addresses: {', '.join(read_ip_addresses()) or 'not detected'}",
-        f"Default gateway: {read_default_gateway()}",
-        f"DNS servers: {', '.join(dns_servers) or 'not detected'}",
-        f"DNS resolution: {check_dns()}",
-        f"ICMP reachability (1.1.1.1): {check_ping()}",
+        *network_lines,
     ]
-
     if service_lines:
         lines.extend(["", "Services", "--------", *service_lines])
-
     lines.extend([
         "",
         "Notes",
         "-----",
         "Review failed checks first. Validate the fix by running the toolkit again after changes.",
     ])
+    if redact:
+        lines.append("Anonymization is best effort; manually review before sharing.")
     return "\n".join(lines) + "\n"
+
+
+def save_report_private(path: Path, report: str) -> None:
+    """Atomically replace the destination using a 0600 temporary file.
+
+    Avoids truncating an existing file/symlink, and gives every newly-written
+    report owner-only permissions on POSIX filesystems.
+    """
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".diagnostic-", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
+            file.write(report)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(name, path)
+    except BaseException:
+        try:
+            os.unlink(name)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Collect Linux system/network diagnostic information.")
-    parser.add_argument("--output", "-o", help="Optional path where the report will be saved.")
+    parser.add_argument("--output", "-o", help="Optional path where the report will be saved with owner-only permissions.")
     parser.add_argument("--service", action="append", default=[], help="systemd service to check. Can be used multiple times.")
+    parser.add_argument("--redact", action="store_true", help="Hide network identifiers, hostname, service names and command details.")
     args = parser.parse_args()
 
-    report = build_report(args.service)
+    report = build_report(args.service, redact=args.redact)
     print(report)
 
-    
     if args.output:
         output_path = Path(args.output)
         try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(report, encoding="utf-8")
+            save_report_private(output_path, report)
         except OSError as exc:
             parser.exit(1, f"Error saving report to {output_path}: {exc}\n")
         print(f"Report saved to: {output_path}")
-
 
     return 0
 
