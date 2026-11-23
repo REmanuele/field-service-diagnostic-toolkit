@@ -36,6 +36,13 @@ def run_command(command: list[str], timeout: int = 5) -> tuple[bool, str]:
         return False, f"Command not found: {command[0]}"
     except subprocess.TimeoutExpired:
         return False, f"Command timed out: {' '.join(command)}"
+    except OSError as exc:
+        # A present executable can still fail to start (e.g. permission denied).
+        detail = exc.strerror or type(exc).__name__
+        return False, f"Could not execute {command[0]}: {detail}"
+    except UnicodeError:
+        # subprocess.run(text=True) may be unable to decode a command's output.
+        return False, f"Unable to decode command output: {command[0]}"
 
 
 def read_uptime() -> str:
@@ -54,8 +61,10 @@ def read_memory_usage() -> str:
             key, value = line.split(":", 1)
             meminfo[key] = int(value.strip().split()[0])
         total = meminfo.get("MemTotal", 0)
-        available = meminfo.get("MemAvailable", 0)
-        used_percent = (1 - available / total) * 100 if total else 0
+        available = meminfo.get("MemAvailable")
+        if total <= 0 or available is None or not 0 <= available <= total:
+            return "unknown"
+        used_percent = (1 - available / total) * 100
         return f"{used_percent:.1f}% ({(total - available) / 1024:.0f} MB used / {total / 1024:.0f} MB total)"
     except Exception:
         return "unknown"
@@ -88,16 +97,16 @@ def read_default_gateway() -> str:
 
 
 def read_dns_servers() -> list[str]:
-    resolv = Path("/etc/resolv.conf")
-    if not resolv.exists():
+    try:
+        content = Path("/etc/resolv.conf").read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        # Missing, unreadable or undecodable config must not abort diagnostics.
         return []
     servers = []
-    for line in resolv.read_text().splitlines():
-        line = line.strip()
-        if line.startswith("nameserver"):
-            parts = line.split()
-            if len(parts) >= 2:
-                servers.append(parts[1])
+    for line in content.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 2 and parts[0] == "nameserver":
+            servers.append(parts[1])
     return servers
 
 

@@ -81,3 +81,7 @@ The tracked [`reports/example-report.txt`](reports/example-report.txt) is an exp
 The sample reports committed to a public repository must contain **invented** hostnames and documentation IP addresses only. Do not commit real IPs, customer names, secrets, private service names or reports taken from operational environments.
 
 See also `RELEASE-v0.2.md` for the changes introduced in this version.
+
+## Proposed reliability improvements (v0.3 branch)
+
+The [`v0.3 robustness notes`](docs/v0.3-robustness.md) describe additional handling for inaccessible system commands, unreadable resolver configuration and inconsistent memory data, plus automated Linux tests. These changes build on v0.2; they do not alter the existing `--redact` or secure report-export interfaces.
